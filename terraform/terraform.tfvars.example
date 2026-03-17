@@ -1,0 +1,4 @@
+aws_region              = "us-east-1"
+project                 = "tlc-serverless"
+redshift_admin_user     = "admin"
+redshift_admin_password = "YourPassword1!"
