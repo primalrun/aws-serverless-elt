@@ -8,8 +8,6 @@ Companion project to [tlc-pipeline](https://github.com/primalrun/tlc-pipeline) (
 
 For implementation details see [INTERNALS.md](INTERNALS.md).
 
-For implementation details see [INTERNALS.md](INTERNALS.md).
-
 ---
 
 ## Architecture
