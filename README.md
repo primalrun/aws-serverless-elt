@@ -168,6 +168,21 @@ The monthly schedule is for automation once the pipeline is production-ready. Fo
 
 ---
 
+## Lessons Learned
+
+Issues encountered during implementation and how they were resolved.
+
+**Glue Python Shell 3.9 bundles outdated botocore**
+The botocore version bundled in Glue Python Shell 3.9 predates the `WorkgroupName` parameter added to the Redshift Data API's `execute_statement` call. Fixed by adding `--additional-python-modules = "boto3>=1.26.0,botocore>=1.29.0"` to the Glue job's default arguments, which upgrades boto3 at job start.
+
+**Glue role missing `redshift-serverless:GetCredentials`**
+The Redshift Data API requires `redshift-serverless:GetCredentials` in addition to `redshift-data:ExecuteStatement` when authenticating against a Serverless workgroup via IAM. The initial IAM policy had `GetWorkgroup` but not `GetCredentials`. Added the missing action to the Glue role policy.
+
+**Redshift Query Editor v2 permission denied**
+The `yellow_trips` table was created by the Glue job connecting as `IAM:tlc-pipeline-dev`. Connecting to Query Editor v2 using federated IAM credentials resulted in a permission denied error. Fixed by switching the Query Editor connection to database username and password (admin credentials set during Terraform provisioning).
+
+---
+
 ## Project Structure
 
 ```
