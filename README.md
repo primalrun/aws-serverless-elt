@@ -131,6 +131,14 @@ ORDER BY 2 DESC;
 
 ---
 
+## Step Functions Execution
+
+All four states completing successfully — IngestRaw → TransformTrips → LoadRedshift → PipelineSucceeded.
+
+![Step Functions execution](docs/stepfunctions-execution.png)
+
+---
+
 ## How It Works
 
 ### Step Functions — `.sync` integration
