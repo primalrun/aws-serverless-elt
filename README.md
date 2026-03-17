@@ -131,6 +131,14 @@ ORDER BY 2 DESC;
 
 ---
 
+## Redshift Query Results
+
+3.48 million trips loaded for September 2024.
+
+![Redshift yellow_trips](docs/redshift-yellow-trips.png)
+
+---
+
 ## Step Functions Execution
 
 All four states completing successfully — IngestRaw → TransformTrips → LoadRedshift → PipelineSucceeded.
