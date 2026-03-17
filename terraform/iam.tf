@@ -49,6 +49,7 @@ resource "aws_iam_role_policy" "glue_redshift_data" {
         "redshift-data:GetStatementResult",
         "redshift-data:DescribeStatement",
         "redshift-serverless:GetWorkgroup",
+        "redshift-serverless:GetCredentials",
       ]
       Resource = "*"
     }]

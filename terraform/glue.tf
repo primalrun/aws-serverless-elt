@@ -82,11 +82,12 @@ resource "aws_glue_job" "load_redshift" {
   }
 
   default_arguments = {
-    "--processed_bucket"    = aws_s3_bucket.processed.bucket
-    "--workgroup"           = aws_redshiftserverless_workgroup.main.workgroup_name
-    "--database"            = "tlc"
-    "--iam_role"            = aws_iam_role.redshift_s3.arn
-    "--enable-job-insights" = "true"
+    "--processed_bucket"          = aws_s3_bucket.processed.bucket
+    "--workgroup"                 = aws_redshiftserverless_workgroup.main.workgroup_name
+    "--database"                  = "tlc"
+    "--iam_role"                  = aws_iam_role.redshift_s3.arn
+    "--enable-job-insights"       = "true"
+    "--additional-python-modules" = "boto3>=1.26.0,botocore>=1.29.0"
   }
 
   max_capacity = 0.0625
