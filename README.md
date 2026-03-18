@@ -16,13 +16,18 @@ For implementation details see [INTERNALS.md](INTERNALS.md).
 EventBridge Scheduler (monthly cron)
       │
       ▼
+Lambda (computes current month - 2)
+      │
+      ▼
 Step Functions Standard Workflow
       ├── IngestRaw      → Glue Python Shell  → downloads TLC parquet → S3 raw
       ├── TransformTrips → Glue Spark (G.1X)  → clean + rename cols   → S3 processed
-      └── LoadRedshift   → Glue Python Shell  → COPY S3 → Redshift Serverless
+      └── LoadRedshift   → Glue Python Shell  → delete month + COPY S3 → Redshift Serverless
 ```
 
 Each Step Functions state uses the `.sync` optimized integration — it starts the Glue job and waits for completion before advancing. No polling code needed in the state machine.
+
+The load step is **idempotent** — it deletes any existing rows for the target month before running COPY, so re-running the pipeline for the same month never duplicates data.
 
 ---
 
@@ -35,7 +40,7 @@ Each Step Functions state uses the `.sync` optimized integration — it starts t
 | Transform | AWS Glue Spark job (Glue 4.0, G.1X worker) |
 | Storage | Amazon S3 (raw + processed buckets) |
 | Sink | Amazon Redshift Serverless (8 RPU, free tier eligible) |
-| Schedule | Amazon EventBridge Scheduler (monthly cron) |
+| Schedule | Amazon EventBridge Scheduler (monthly cron) → Lambda → Step Functions |
 | Infrastructure | Terraform (AWS provider ~> 5.0) |
 
 ---
@@ -89,7 +94,7 @@ make init
 make apply
 ```
 
-This creates: S3 buckets (raw, processed, scripts), Glue jobs, Redshift Serverless namespace + workgroup, Step Functions state machine, EventBridge schedule, and all IAM roles.
+This creates: S3 buckets (raw, processed, scripts), Glue jobs, Lambda trigger, Redshift Serverless namespace + workgroup, Step Functions state machine, EventBridge schedule (disabled by default), and all IAM roles.
 
 ### 3. Run the pipeline
 
@@ -162,9 +167,13 @@ Each state in the workflow uses `arn:aws:states:::glue:startJobRun.sync`. The `.
 
 The `load_redshift` job connects to Redshift Serverless via the Redshift Data API rather than a direct JDBC connection. This avoids VPC configuration (no need to place Glue in the same VPC as Redshift) and works with Redshift Serverless's IAM authentication.
 
-### EventBridge Scheduler
+### Lambda Trigger
 
-The monthly schedule is for automation once the pipeline is production-ready. For development and testing, `make run-pipeline` triggers an execution on demand with any year/month input.
+The `lambda/trigger.py` function sits between EventBridge Scheduler and Step Functions. It computes `current month - 2` (the latest available TLC data release) and starts a Step Functions execution with the correct year and month — no hardcoded dates.
+
+EventBridge Scheduler is set to `DISABLED` by default. To enable the monthly automation, change `state = "DISABLED"` to `state = "ENABLED"` in `terraform/eventbridge.tf` and run `make apply`.
+
+For ad-hoc runs, `make run-pipeline YEAR=2024 MONTH=09` calls Step Functions directly, bypassing EventBridge and Lambda entirely.
 
 ---
 
@@ -191,17 +200,20 @@ aws-serverless-elt/
 │   └── jobs/
 │       ├── ingest_raw.py        # Python Shell: download TLC parquet → S3 raw
 │       ├── transform_trips.py   # Spark G.1X: clean + transform → S3 processed
-│       └── load_redshift.py     # Python Shell: COPY S3 → Redshift Serverless
+│       └── load_redshift.py     # Python Shell: delete month + COPY S3 → Redshift
+├── lambda/
+│   └── trigger.py               # Computes current month - 2, starts Step Functions
 ├── terraform/
 │   ├── providers.tf
 │   ├── variables.tf
 │   ├── outputs.tf
 │   ├── s3.tf                    # Raw, processed, scripts buckets
-│   ├── iam.tf                   # Glue, Redshift, Step Functions, EventBridge roles
+│   ├── iam.tf                   # Glue, Redshift, Step Functions, Lambda, EventBridge roles
 │   ├── glue.tf                  # Glue jobs + script upload to S3
+│   ├── lambda.tf                # Lambda trigger function + IAM role
 │   ├── redshift.tf              # Redshift Serverless namespace + workgroup
 │   ├── stepfunctions.tf         # State machine definition (ASL)
-│   ├── eventbridge.tf           # Monthly scheduler
+│   ├── eventbridge.tf           # Monthly scheduler (disabled by default)
 │   └── terraform.tfvars.example
 ├── sql/
 │   └── create_tables.sql        # Reference DDL + verification queries

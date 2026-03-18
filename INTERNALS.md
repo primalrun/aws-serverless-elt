@@ -5,14 +5,19 @@
 ### `make apply` — infrastructure provisioning only
 - `terraform/` — all `.tf` files provisioned once; not touched at runtime
 - `glue/jobs/*.py` — uploaded to S3 by Terraform at apply time via `aws_s3_object`
+- `lambda/trigger.py` — zipped and deployed to Lambda by Terraform
 
-### `make run-pipeline` — starts an execution
+### `make run-pipeline` — starts an execution manually
 - `terraform/outputs.tf` — reads `state_machine_arn` to build the CLI command
+- Calls Step Functions directly, bypassing EventBridge and Lambda
+
+### Automated monthly run (EventBridge → Lambda → Step Functions)
+- `lambda/trigger.py` — invoked by EventBridge Scheduler, computes target month, starts execution
 
 ### During a Step Functions execution
 - `glue/jobs/ingest_raw.py` — runs in Glue Python Shell, reads from CloudFront, writes to S3 raw
 - `glue/jobs/transform_trips.py` — runs in Glue Spark, reads S3 raw, writes S3 processed
-- `glue/jobs/load_redshift.py` — runs in Glue Python Shell, COPYs S3 processed → Redshift
+- `glue/jobs/load_redshift.py` — runs in Glue Python Shell, deletes existing month rows, COPYs S3 processed → Redshift
 
 ### Never used at runtime
 - `sql/create_tables.sql` — reference DDL only; the load job handles `CREATE TABLE IF NOT EXISTS`
@@ -131,6 +136,40 @@ SORTKEY AUTO;
 Redshift is a columnar MPP (massively parallel processing) database. Rows are distributed across compute nodes according to the distribution style, and sorted within each node according to the sort key. Choosing the wrong settings can cause data skew (one node doing most of the work) or slow query performance.
 
 `DISTSTYLE AUTO` and `SORTKEY AUTO` tell Redshift to analyze the data after loading and automatically choose the optimal distribution and sort keys. This is the recommended default for new tables — Redshift has enough information about the data to make better choices than a developer guessing upfront.
+
+---
+
+## Idempotent Load (Delete Before COPY)
+
+The `load_redshift` job deletes existing rows for the target month before running COPY:
+
+```sql
+DELETE FROM yellow_trips
+WHERE DATE_TRUNC('month', pickup_datetime) = '2024-09-01';
+```
+
+Without this, re-running the pipeline for the same month would append a second copy of all rows — 7 million instead of 3.48 million. The delete-before-copy pattern ensures re-runs are safe regardless of whether they're triggered manually, by a retry, or by the monthly schedule.
+
+The S3 side is also idempotent: `ingest_raw` uploads to the same S3 key (overwrite) and `transform_trips` writes with `mode("overwrite")`.
+
+---
+
+## Lambda Trigger
+
+`lambda/trigger.py` sits between EventBridge Scheduler and Step Functions. Its only job is to compute the correct year/month and start an execution — without it, the EventBridge input would need to be updated manually every month.
+
+The month calculation:
+
+```python
+today = datetime.date.today()
+first_of_this_month = today.replace(day=1)
+first_of_last_month = (first_of_this_month - datetime.timedelta(days=1)).replace(day=1)
+target = (first_of_last_month - datetime.timedelta(days=1)).replace(day=1)
+```
+
+This subtracts two months by stepping back to the last day of the previous month twice, then taking the first of that month. It handles varying month lengths correctly without hardcoding 30 or 31 days.
+
+For ad-hoc runs, `make run-pipeline YEAR=2024 MONTH=09` calls Step Functions directly — EventBridge and Lambda are not involved.
 
 ---
 
