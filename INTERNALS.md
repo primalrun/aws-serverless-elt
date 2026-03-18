@@ -61,6 +61,9 @@ redshift.tf
   └── glue.tf         (references aws_redshiftserverless_workgroup.main)
   └── iam.tf          (references aws_iam_role.redshift_s3 via iam_roles)
 
+glue.tf
+  └── stepfunctions.tf (references aws_glue_job.ingest_raw, .transform_trips, .load_redshift)
+
 stepfunctions.tf
   └── glue.tf         (references aws_sfn_state_machine.pipeline via job names)
   └── lambda.tf       (references aws_sfn_state_machine.pipeline)
