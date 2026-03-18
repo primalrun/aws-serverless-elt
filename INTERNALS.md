@@ -27,6 +27,52 @@
 
 ---
 
+## Terraform File Dependencies
+
+How the Terraform files reference each other — Terraform resolves this automatically and creates resources in the correct order.
+
+```
+terraform.tfvars
+  └── variables.tf    (supplies values for var.redshift_admin_password, var.redshift_admin_user,
+                       var.project, var.aws_region)
+
+variables.tf
+  └── s3.tf           (references var.project, var.aws_region)
+  └── iam.tf          (references var.project)
+  └── glue.tf         (references var.project)
+  └── redshift.tf     (references var.project, var.redshift_admin_user, var.redshift_admin_password)
+  └── stepfunctions.tf (references var.project)
+  └── lambda.tf       (references var.project)
+  └── eventbridge.tf  (references var.project)
+  └── providers.tf    (references var.aws_region)
+
+s3.tf
+  └── glue.tf         (references aws_s3_bucket.raw, .processed, .scripts)
+  └── iam.tf          (references aws_s3_bucket.raw, .processed, .scripts)
+
+iam.tf
+  └── glue.tf         (references aws_iam_role.glue)
+  └── redshift.tf     (references aws_iam_role.redshift_s3)
+  └── stepfunctions.tf (references aws_iam_role.stepfunctions)
+  └── lambda.tf       (references aws_iam_role.lambda — defined in lambda.tf itself)
+  └── eventbridge.tf  (references aws_iam_role.scheduler)
+
+redshift.tf
+  └── glue.tf         (references aws_redshiftserverless_workgroup.main)
+  └── iam.tf          (references aws_iam_role.redshift_s3 via iam_roles)
+
+stepfunctions.tf
+  └── glue.tf         (references aws_sfn_state_machine.pipeline via job names)
+  └── lambda.tf       (references aws_sfn_state_machine.pipeline)
+  └── iam.tf          (references aws_sfn_state_machine.pipeline via scheduler policy)
+
+lambda.tf
+  └── eventbridge.tf  (references aws_lambda_function.trigger)
+  └── iam.tf          (references aws_lambda_function.trigger via scheduler policy)
+```
+
+---
+
 ## Step Functions `.sync` Integration
 
 Each state in the workflow uses `arn:aws:states:::glue:startJobRun.sync` as its resource. The `.sync` suffix is an AWS SDK optimized integration — it starts the Glue job and then polls the job status in the background until the job reaches a terminal state (SUCCEEDED, FAILED, STOPPED) before advancing to the next state.
