@@ -104,16 +104,17 @@ Separating raw and processed gives a clean reprocessing story: if the transform 
 
 ---
 
-## Four IAM Roles
+## Five IAM Roles
 
 | Role | Used by | Why separate |
 |---|---|---|
 | `tlc-serverless-glue-role` | Glue jobs | Needs S3 read/write + Redshift Data API access |
 | `tlc-serverless-redshift-s3-role` | Redshift (during COPY) | Needs S3 read access; passed as `IAM_ROLE` in the COPY command |
 | `tlc-serverless-sfn-role` | Step Functions | Needs `glue:StartJobRun` + polling permissions |
-| `tlc-serverless-scheduler-role` | EventBridge Scheduler | Needs `states:StartExecution` on the state machine |
+| `tlc-serverless-lambda-role` | Lambda trigger | Needs `states:StartExecution` on the state machine |
+| `tlc-serverless-scheduler-role` | EventBridge Scheduler | Needs `lambda:InvokeFunction` on the trigger function |
 
-Each role has only the permissions it needs. Glue cannot start Step Functions executions. Step Functions cannot read S3 directly. This follows the principle of least privilege.
+Each role has only the permissions it needs. Glue cannot start Step Functions executions. Step Functions cannot read S3 directly. EventBridge cannot call Step Functions directly — it goes through Lambda. This follows the principle of least privilege.
 
 ---
 
@@ -183,4 +184,4 @@ Both can trigger Step Functions on a cron schedule, but Scheduler has several ad
 - Is purpose-built for scheduling (Rules are primarily for event routing)
 - Manages its own IAM role per schedule rather than a shared role
 
-The schedule runs on the 5th of each month. The input (`year`, `month`) is static and should be updated each month to match the latest available TLC data release (typically 2 months behind). For ad-hoc runs, `make run-pipeline YEAR=2024 MONTH=09` bypasses the schedule entirely.
+The schedule runs on the 5th of each month and invokes the Lambda trigger, which computes the correct month automatically. The schedule is set to `DISABLED` by default — enable it in `eventbridge.tf` when ready for production use. For ad-hoc runs, `make run-pipeline YEAR=2024 MONTH=09` calls Step Functions directly and bypasses both EventBridge and Lambda.
