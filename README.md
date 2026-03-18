@@ -140,6 +140,8 @@ ORDER BY 2 DESC;
 
 3.48 million trips loaded for September 2024.
 
+![make verify output](docs/make-verify-output.png)
+
 ![Redshift yellow_trips](docs/redshift-yellow-trips.png)
 
 ---
