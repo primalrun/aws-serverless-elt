@@ -134,16 +134,16 @@ resource "aws_iam_role" "scheduler" {
   })
 }
 
-resource "aws_iam_role_policy" "scheduler_sfn" {
-  name = "${var.project}-scheduler-sfn"
+resource "aws_iam_role_policy" "scheduler_lambda" {
+  name = "${var.project}-scheduler-lambda"
   role = aws_iam_role.scheduler.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = "states:StartExecution"
-      Resource = aws_sfn_state_machine.pipeline.arn
+      Action   = "lambda:InvokeFunction"
+      Resource = aws_lambda_function.trigger.arn
     }]
   })
 }

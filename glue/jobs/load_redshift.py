@@ -2,7 +2,9 @@
 Glue Python Shell job — load_redshift
 
 Creates the yellow_trips table in Redshift Serverless (if it doesn't exist),
-then COPYs the processed parquet for the given month from S3.
+deletes any existing rows for the target month, then COPYs the processed
+parquet from S3. The delete-before-copy pattern makes the job idempotent —
+re-running the same month any number of times produces the correct result.
 
 Uses the Redshift Data API (no direct JDBC connection needed).
 
@@ -83,6 +85,14 @@ FROM '{s3_path}'
 IAM_ROLE '{iam_role}'
 FORMAT AS PARQUET;
 """
+
+delete_sql = f"""
+DELETE FROM yellow_trips
+WHERE DATE_TRUNC('month', pickup_datetime) = '{year}-{month}-01';
+"""
+
+print(f"Deleting existing rows for {year}-{month} (idempotent)")
+run_sql(delete_sql)
 
 print(f"Running COPY from {s3_path}")
 run_sql(copy_sql)
