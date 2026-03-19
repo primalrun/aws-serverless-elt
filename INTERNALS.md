@@ -72,6 +72,10 @@ stepfunctions.tf
 lambda.tf
   └── eventbridge.tf  (references aws_lambda_function.trigger)
   └── iam.tf          (references aws_lambda_function.trigger via scheduler policy)
+
+eventbridge.tf  (depends on lambda.tf and iam.tf — end of the chain)
+  └── lambda.tf   (references aws_lambda_function.trigger as the schedule target)
+  └── iam.tf      (references aws_iam_role.scheduler as the execution role)
 ```
 
 ---
