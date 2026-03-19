@@ -1,6 +1,6 @@
 # Internals
 
-## Files Used When the Pipeline Runs
+## Files Used During Setup and Pipeline Execution
 
 ### `make apply` — infrastructure provisioning only
 - `terraform/` — all `.tf` files provisioned once; not touched at runtime
